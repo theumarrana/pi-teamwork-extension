@@ -53,9 +53,33 @@ test("rejects unsafe paths and serializes query arrays", () => {
   assert.equal(normalizeApiPath("  /x.json  "), "/x.json");
   assert.doesNotMatch(normalizeApiPath("  /x.json  "), /[\p{C}\p{Z}]/u);
   assert.equal(
-    buildUrl("/projects/api/v3/tasks.json", { "ids[]": [1, 2], includeArchived: false, empty: null }, SITE).toString(),
-    `${ORIGIN}/projects/api/v3/tasks.json?ids%5B%5D=1&ids%5B%5D=2&includeArchived=false&empty=`,
+    buildUrl("/projects/api/v3/tasks.json", { "ids[]": [1, 2], includeArchived: false, empty: null, none: [] }, SITE).toString(),
+    `${ORIGIN}/projects/api/v3/tasks.json?ids=1%2C2&includeArchived=false&empty=`,
   );
+});
+
+test("multi-value filters are one comma-separated parameter", () => {
+  // Teamwork applies only the first repeated key and ignores a `key[]` suffix. Both forms return
+  // a plausible, wrongly filtered 200, which is why the wire format must be comma-separated.
+  assert.equal(
+    buildUrl("/projects/api/v3/tasks.json", { tasklistIds: [3848871, 3848873] }, SITE).searchParams.get("tasklistIds"),
+    "3848871,3848873",
+  );
+  const bracketed = buildUrl("/projects/api/v3/tasks.json", { "tasklistIds[]": [3848871, 3848873] }, SITE).searchParams;
+  assert.equal(bracketed.has("tasklistIds[]"), false);
+  assert.equal(bracketed.get("tasklistIds"), "3848871,3848873");
+  assert.equal(buildUrl("/projects/api/v3/tasks.json", { tasklistIds: [] }, SITE).search, "");
+});
+
+test("a failed request names the request and quotes the response body", async () => {
+  const fetchImpl: Fetcher = async () => json('{"error":"orderBy must be one of: date, name"}', 400);
+  const error = await requestTeamwork(
+    { method: "GET", path: "/projects/api/v3/milestones.json", query: { orderBy: "displayOrder" } },
+    { site: SITE, auth: AUTH, fetchImpl },
+  ).then(() => undefined, (caught: unknown) => caught);
+  assert.ok(error instanceof TeamworkApiError && error.status === 400);
+  assert.match(error.message, /GET \/projects\/api\/v3\/milestones\.json\?orderBy=displayOrder/);
+  assert.match(error.message, /orderBy must be one of/);
 });
 
 test("raw-value validation diverges from a raw-first order only for ASCII space padding", () => {

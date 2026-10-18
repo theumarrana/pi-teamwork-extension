@@ -33,6 +33,8 @@ function assertNoForbiddenChars(raw: string, message: string): void {
 const SPEC_TIMEOUT_MS = 30_000;
 const SPEC_MAX_BYTES = 10 * 1024 * 1024;
 const ERROR_EXCERPT_BYTES = 8_000;
+/** Enough of the response body to name the offending field without flooding the transcript. */
+const ERROR_DETAIL_CHARS = 1_000;
 
 export type SpecSource = keyof typeof SPEC_URLS;
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -126,8 +128,18 @@ export function buildUrl(path: string, query: Record<string, QueryValue> = {}, s
   if (url.origin !== base.origin || url.protocol !== "https:") {
     throw new Error(`Resolved path must remain under ${base.origin}.`);
   }
-  for (const [key, value] of Object.entries(query)) {
-    for (const item of Array.isArray(value) ? value : [value]) url.searchParams.append(key, item === null ? "" : String(item));
+  for (const [rawKey, value] of Object.entries(query)) {
+    if (value === undefined) continue;
+    // Teamwork reads only the first repeated query key and ignores a `key[]` suffix, so a
+    // multi-value filter must be one comma-separated parameter. Repeated keys silently drop
+    // every value after the first, and `key[]` silently drops the filter altogether.
+    const key = rawKey.endsWith("[]") ? rawKey.slice(0, -2) : rawKey;
+    if (Array.isArray(value)) {
+      if (value.length === 0) continue;
+      url.searchParams.set(key, value.map((item) => (item === null ? "" : String(item))).join(","));
+      continue;
+    }
+    url.searchParams.set(key, value === null ? "" : String(value));
   }
   return url;
 }
@@ -185,7 +197,12 @@ export async function requestTeamwork(input: ApiRequest, options: RequestOptions
 
     if (!response.ok) {
       const excerpt = text.length > ERROR_EXCERPT_BYTES ? `${text.slice(0, ERROR_EXCERPT_BYTES)}…` : text;
-      throw new TeamworkApiError(response.status, `Teamwork API ${response.status} ${response.statusText}`, excerpt);
+      // The status line alone forces blind guesswork; name the request and quote the server's
+      // own validation text so the caller can correct the shape in one step.
+      const detail = excerpt.trim().slice(0, ERROR_DETAIL_CHARS);
+      const target = `${input.method} ${url.pathname}${url.search}`;
+      const message = `Teamwork API ${response.status}${response.statusText ? ` ${response.statusText}` : ""} for ${target}${detail ? `\n${detail}` : ""}`;
+      throw new TeamworkApiError(response.status, message, excerpt);
     }
 
     return {
