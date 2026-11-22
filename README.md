@@ -33,7 +33,7 @@ Every POST, PUT, PATCH, and DELETE requires interactive confirmation.
 ## Install
 
 ```bash
-pi install git:github.com/umar-rana/pi-teamwork-extension
+pi install git:github.com/theumarrana/pi-teamwork-extension
 ```
 
 Restart Pi or run `/reload` after installation.
@@ -41,7 +41,7 @@ Restart Pi or run `/reload` after installation.
 For local development:
 
 ```bash
-git clone https://github.com/umar-rana/pi-teamwork-extension.git
+git clone https://github.com/theumarrana/pi-teamwork-extension.git
 cd pi-teamwork-extension
 npm install
 pi -e ./index.ts
