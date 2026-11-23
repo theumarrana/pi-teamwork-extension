@@ -10,7 +10,7 @@ Build a public Pi extension for stable, direct Teamwork.com PM operations. The e
 
 | Area | Source |
 |---|---|
-| Code, checks, releases | This checkout and `https://github.com/umar-rana/pi-teamwork-extension` |
+| Code, checks, releases | This checkout and `https://github.com/theumarrana/pi-teamwork-extension` |
 | API contract | Teamwork official docs and the linked official OAS asset |
 | Coordination | `PROJECT_STATUS.md` |
 | Public documentation | `README.md` |
